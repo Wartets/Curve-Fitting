@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<title>Thin-Plate Spline Fullscreen</title>
+	<link rel="icon" href="https://wartets.github.io/N-Body-Problem/image/browser-icon.png">
+	<meta name="robots" content="index, follow">
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<link rel="apple-touch-icon" href="https://wartets.github.io/Wartets/image/app-icon.jpg">
+<style>
+	html, body {
+		margin: 0;
+		padding: 0;
+		height: 100%;
+		overflow: hidden;
+		background: #f0f0f0;
+	}
+	body {
+		font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+		user-select: none;
+	}
+	#mainCanvas {
+		position: absolute;
+		top: 0; left: 0;
+		width: 100vw;
+		height: 100vh;
+		border: none;
+		background: white;
+		cursor: crosshair;
+	}
+	#resetBtn {
+		position: fixed;
+		bottom: 20px;
+		right: 20px;
+		padding: 10px 18px;
+		font-size: 16px;
+		border: none;
+		border-radius: 6px;
+		background-color: #444;
+		color: white;
+		cursor: pointer;
+		box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+		transition: transform 0.2s ease, background-color 0.2s ease;
+		z-index: 10;
+	}
+	#resetBtn:hover {
+		transform: scale(1.1);
+		background-color: #a94442;
+	}
+	#lambdaControl {
+		position: fixed;
+		top: 20px;
+		left: 20px;
+		background: white;
+		padding: 8px 14px;
+		border-radius: 8px;
+		box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		z-index: 10;
+	}
+	.lambda-label {
+		font-weight: 600;
+		color: #222;
+		min-width: 60px;
+	}
+</style>
+</head>
+<body>
+<canvas id="mainCanvas"></canvas>
+
+<!-- Slider de lambda -->
+<div id="lambdaControl">
+	<input type="range" id="lambdaSlider" min="0" max="1" step="0.01" value="0.1" />
+	<label for="lambdaSlider" class="lambda-label">λ = <span id="lambdaValue">0.1</span></label>
+</div>
+
+<button id="resetBtn">Reset</button>
+
+<script>
+(() => {
+	const canvas = document.getElementById('mainCanvas');
+	const ctx = canvas.getContext('2d');
+	let points = [];
+	let lambda = 0.1;
+	let showPoints = true;
+
+	const viridis = [
+		[68, 1, 84], [69, 22, 103], [71, 44, 122], [65, 62, 130], [59, 81, 139],
+		[51, 97, 140], [44, 113, 142], [39, 128, 141], [33, 144, 141], [36, 158, 135],
+		[39, 173, 129], [65, 186, 114], [92, 200, 99], [131, 210, 74], [170, 220, 50],
+		[211, 226, 44], [253, 231, 37],
+	];
+	const LUT_SIZE = 80;
+	const colorLUT = new Array(LUT_SIZE);
+
+	function buildColorLUT() {
+		for(let i=0; i<LUT_SIZE; i++) {
+			const v = i/(LUT_SIZE-1) * 2 - 1;
+			colorLUT[i] = getColorFromValueOriginal(v);
+		}
+	}
+	function getColorFromValueOriginal(v) {
+		v = Math.max(0, Math.min(1, (v + 1) / 2));
+		const a = 100, b = 40;
+		const idxDisc = Math.min(viridis.length - 1, Math.floor(v * viridis.length));
+		const g = viridis[idxDisc];
+		const scaled = v * (viridis.length - 1);
+		const idxInterp = Math.floor(scaled);
+		const t = scaled - idxInterp;
+		const c1 = viridis[idxInterp];
+		const c2 = viridis[Math.min(idxInterp + 1, viridis.length - 1)];
+		const f = [
+			(1 - t) * c1[0] + t * c2[0],
+			(1 - t) * c1[1] + t * c2[1],
+			(1 - t) * c1[2] + t * c2[2]
+		];
+		const result = [0, 0, 0];
+		for (let i = 0; i < 3; i++) {
+			const fx = Math.max(1e-6, f[i]);
+			const gx = Math.max(1e-6, g[i]);
+			const avg = (Math.floor(gx) + Math.ceil(gx)) / 2;
+			const mix = Math.pow(fx ** (a - b) * avg ** b, 1 / a) * Math.sign(gx);
+			result[i] = Math.round(mix);
+		}
+		return result;
+	}
+	function getColorFromValueFast(v) {
+		v = Math.max(-1, Math.min(1, v));
+		const idx = Math.floor(((v + 1) / 2) * (LUT_SIZE - 1));
+		return colorLUT[idx];
+	}
+	buildColorLUT();
+
+	function resize() {
+		canvas.width = window.innerWidth;
+		canvas.height = window.innerHeight;
+		draw();
+	}
+	window.addEventListener('resize', resize);
+	resize();
+
+	function draw() {
+		const w = canvas.width, h = canvas.height;
+		const imageData = ctx.createImageData(w, h);
+
+		for(let y = 0; y < h; y++) {
+			for(let x = 0; x < w; x++) {
+				const idx = (y * w + x) * 4;
+				let val = 0;
+				for(let p of points) {
+					const dx = p.x - x;
+					const dy = p.y - y;
+					const dist2 = dx * dx + dy * dy;
+
+					const linearTerm = p.sign * (p.x * x + p.y * y) / (w * h);
+					const kernelTerm = p.sign * Math.exp(-dist2 / (5 * 5000 * (1 - lambda + 0.01)));
+
+					val += lambda * linearTerm + (1 - lambda) * kernelTerm;
+				}
+				val = Math.max(-1, Math.min(1, val));
+				const [r,g,b] = getColorFromValueFast(val);
+				imageData.data[idx] = r;
+				imageData.data[idx+1] = g;
+				imageData.data[idx+2] = b;
+				imageData.data[idx+3] = 255;
+			}
+		}
+		ctx.putImageData(imageData, 0, 0);
+		
+		if (showPoints) {
+			for(let p of points) {
+				ctx.beginPath();
+				ctx.arc(p.x, p.y, 4, 0, 2 * Math.PI);
+				ctx.fillStyle = p.sign === 1 ? "red" : "blue";
+				ctx.fill();
+				ctx.strokeStyle = "white";
+				ctx.lineWidth = 1.5;
+				ctx.stroke();
+			}
+		}
+	}
+
+	function addPoint(x,y,sign) {
+		points.push({x,y,sign});
+		draw();
+	}
+
+	canvas.addEventListener('mousedown', e => {
+	if (e.button === 2 && e.shiftKey) {
+		return;
+	}
+
+	e.preventDefault();
+	const rect = canvas.getBoundingClientRect();
+	const x = e.clientX - rect.left;
+	const y = e.clientY - rect.top;
+	const sign = e.button === 2 ? -1 : 1;
+	addPoint(x, y, sign);
+	});
+
+	canvas.addEventListener('contextmenu', e => {
+		if (!e.shiftKey) e.preventDefault();
+	});
+
+
+	document.getElementById('resetBtn').addEventListener('click', () => {
+		points = [];
+		draw();
+	});
+
+	const lambdaSlider = document.getElementById('lambdaSlider');
+	const lambdaValue = document.getElementById('lambdaValue');
+
+	lambdaSlider.addEventListener('input', () => {
+		lambda = parseFloat(lambdaSlider.value);
+		lambdaValue.textContent = lambda.toFixed(2);
+		draw();
+	});
+
+	// Toggle points with spacebar
+	window.addEventListener('keydown', e => {
+		if (e.code === "Space") {
+			e.preventDefault();
+			showPoints = !showPoints;
+			draw();
+		}
+	});
+})();
+</script>
+</body>
+</html>

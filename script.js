@@ -131,7 +131,7 @@ canvases.forEach(({ id, lambda, dynamic }) => {
 		const x = e.clientX - rect.left;
 		const y = e.clientY - rect.top;
 		const sign = e.button === 2 ? -1 : 1;
-		points.push({ x, y, sign });
+		addPoint(x, y, sign);
 		redrawAll();
 	});
 
@@ -150,3 +150,16 @@ document.getElementById("lambdaSlider").addEventListener("input", (e) => {
 	document.getElementById("lambdaValue").textContent = parseFloat(e.target.value).toFixed(2);
 	redrawAll();
 });
+
+const instruction = document.getElementById("instruction");
+const resetBtn = document.getElementById("resetBtn");
+
+resetBtn.addEventListener("click", () => {
+	points = [];
+	redrawAll();
+});
+
+function addPoint(x, y, sign) {
+	points.push({ x, y, sign });
+	redrawAll();
+}

@@ -3,6 +3,10 @@
 <head>
 	<meta charset="UTF-8" />
 	<title>Thin-Plate Spline Demo</title>
+	<link rel="icon" href="https://wartets.github.io/N-Body-Problem/image/browser-icon.png">
+	<meta name="robots" content="index, follow">
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<link rel="apple-touch-icon" href="https://wartets.github.io/Wartets/image/app-icon.jpg">
 	<style>
 		body {
 		  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
@@ -86,14 +90,55 @@
 			color: #555;
 			text-decoration: underline;
 		}
+		#resetBtn {
+			margin-top: 10px;
+			padding: 8px 16px;
+			font-size: 14px;
+			border: none;
+			border-radius: 6px;
+			background-color: #444;
+			color: white;
+			cursor: pointer;
+			box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+			transition: transform 0.2s ease, background-color 0.2s ease;
+		}
+		#resetBtn:hover {
+			transform: scale(1.1);
+			background-color: #a94442;
+			transition: transform 0.2s ease, background-color 0.2s ease;
+		}
+#fullscreenBtn {
+	position: fixed;
+	top: 20px;
+	right: 20px;
+	padding: 8px 16px;
+	background-color: #444;
+	color: white;
+	text-decoration: none;
+	border-radius: 6px;
+	font-size: 14px;
+	box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+	transition: background-color 0.2s ease, transform 0.2s ease;
+	z-index: 10;
+}
+#fullscreenBtn:hover {
+	background-color: #2c7bd4;
+	transform: scale(1.05);
+}
+
 	</style>
 	<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
 </head>
 <body>
+	<a href="full.html" id="fullscreenBtn" title="Open fullscreen view">⤢ Fullscreen</a>
+
 	<img src="title.jpg" alt="Formule Thin-Plate Spline" class="header-image" />
 
+	<div id="instruction" style="margin-bottom: 20px; font-weight: bold; color: #666;">
+		Click left or right to add points.
+	</div>
+
 	<div class="container">
-	
 		<div class="plot-wrapper">
 			<canvas id="canvas1" width="300" height="300"></canvas>
 			<div class="label">λ → 1 (linear regression)</div>
@@ -112,6 +157,8 @@
 			<div class="label">λ → 0 (interpolation)</div>
 		</div>
 	</div>
+	
+	<button id="resetBtn">Reset</button>
 
 	<script src="script.js"></script>
 
